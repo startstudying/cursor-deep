@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
+from typing import Any
 
-from app.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
+from app.schemas.chat import ChatCompletionRequest
 
 
 class ChatProvider(ABC):
@@ -11,7 +12,7 @@ class ChatProvider(ABC):
     async def create_chat_completion(
         self,
         request: ChatCompletionRequest,
-    ) -> ChatCompletionResponse:
+    ) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod

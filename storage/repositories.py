@@ -7,19 +7,31 @@ from storage.db import get_connection
 
 @dataclass(slots=True)
 class ChatLogCreate:
-    request_time: str
-    model_name: str
-    success: bool
-    error_message: str | None = None
+    created_at: str
+    path: str
+    public_model: str | None
+    upstream_model: str | None
+    stream: bool
+    request_body_truncated: str | None = None
+    upstream_status_code: int | None = None
+    response_body_truncated: str | None = None
+    error_text: str | None = None
+    duration_ms: int = 0
 
 
 @dataclass(slots=True)
 class ChatLog:
     id: int
-    request_time: str
-    model_name: str
-    success: bool
-    error_message: str | None
+    created_at: str
+    path: str
+    public_model: str | None
+    upstream_model: str | None
+    stream: bool
+    request_body_truncated: str | None
+    upstream_status_code: int | None
+    response_body_truncated: str | None
+    error_text: str | None
+    duration_ms: int
 
 
 class ChatLogRepository:
@@ -27,14 +39,31 @@ class ChatLogRepository:
         with get_connection() as connection:
             cursor = connection.execute(
                 """
-                INSERT INTO chat_logs (request_time, model_name, success, error_message)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO chat_logs (
+                    created_at,
+                    path,
+                    public_model,
+                    upstream_model,
+                    stream,
+                    request_body_truncated,
+                    upstream_status_code,
+                    response_body_truncated,
+                    error_text,
+                    duration_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    payload.request_time,
-                    payload.model_name,
-                    int(payload.success),
-                    payload.error_message,
+                    payload.created_at,
+                    payload.path,
+                    payload.public_model,
+                    payload.upstream_model,
+                    int(payload.stream),
+                    payload.request_body_truncated,
+                    payload.upstream_status_code,
+                    payload.response_body_truncated,
+                    payload.error_text,
+                    payload.duration_ms,
                 ),
             )
             connection.commit()
@@ -45,7 +74,18 @@ class ChatLogRepository:
         with get_connection() as connection:
             rows = connection.execute(
                 """
-                SELECT id, request_time, model_name, success, error_message
+                SELECT
+                    id,
+                    created_at,
+                    path,
+                    public_model,
+                    upstream_model,
+                    stream,
+                    request_body_truncated,
+                    upstream_status_code,
+                    response_body_truncated,
+                    error_text,
+                    duration_ms
                 FROM chat_logs
                 ORDER BY id DESC
                 LIMIT ?
@@ -56,10 +96,16 @@ class ChatLogRepository:
         return [
             ChatLog(
                 id=int(row["id"]),
-                request_time=str(row["request_time"]),
-                model_name=str(row["model_name"]),
-                success=bool(row["success"]),
-                error_message=row["error_message"],
+                created_at=str(row["created_at"]),
+                path=str(row["path"]),
+                public_model=row["public_model"],
+                upstream_model=row["upstream_model"],
+                stream=bool(row["stream"]),
+                request_body_truncated=row["request_body_truncated"],
+                upstream_status_code=row["upstream_status_code"],
+                response_body_truncated=row["response_body_truncated"],
+                error_text=row["error_text"],
+                duration_ms=int(row["duration_ms"]),
             )
             for row in rows
         ]

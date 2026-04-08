@@ -3,7 +3,6 @@ from __future__ import annotations
 from app.config import settings
 from app.providers.base import ChatProvider
 from app.providers.openai_compatible import OpenAICompatibleProvider
-from services.log_service import LogService
 
 
 _provider: ChatProvider | None = None
@@ -20,6 +19,5 @@ def get_chat_provider() -> ChatProvider:
             request_timeout_seconds=settings.request_timeout_seconds,
             drop_fields=set(settings.drop_fields),
             max_logged_body_chars=settings.max_logged_body_chars,
-            log_service=LogService(),
         )
     return _provider

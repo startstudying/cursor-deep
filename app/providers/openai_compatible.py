@@ -10,9 +10,13 @@ from fastapi import HTTPException, status
 
 from app.api.deps import build_error_payload
 from app.config import settings
-from app.providers.base import ChatProvider
+from app.providers.base import (
+    ChatCompletionResult,
+    ChatCompletionStreamResult,
+    ChatProvider,
+    ProviderGatewayError,
+)
 from app.schemas.chat import ChatCompletionRequest
-from services.log_service import LogService
 
 
 class OpenAICompatibleProvider(ChatProvider):
@@ -24,7 +28,6 @@ class OpenAICompatibleProvider(ChatProvider):
         request_timeout_seconds: int,
         drop_fields: set[str] | None = None,
         max_logged_body_chars: int = 12000,
-        log_service: LogService | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -32,15 +35,13 @@ class OpenAICompatibleProvider(ChatProvider):
         self.request_timeout_seconds = request_timeout_seconds
         self.drop_fields = drop_fields or set()
         self.max_logged_body_chars = max(1, max_logged_body_chars)
-        self.log_service = log_service or LogService()
 
     async def create_chat_completion(
         self,
         request: ChatCompletionRequest,
-    ) -> dict[str, Any]:
+    ) -> ChatCompletionResult:
         self._validate_config()
 
-        started_at = time.perf_counter()
         public_model, upstream_model = settings.resolve_upstream_model(request.model)
         payload = self._build_payload(request, upstream_model=upstream_model, stream=False)
         request_body = self._serialize_body(payload)
@@ -53,95 +54,72 @@ class OpenAICompatibleProvider(ChatProvider):
                     json=payload,
                 )
         except httpx.TimeoutException as exc:
-            duration_ms = self._duration_ms(started_at)
-            self._record_log(
-                public_model=public_model,
-                upstream_model=upstream_model,
-                stream=False,
-                request_body=request_body,
-                upstream_status_code=None,
-                response_body=None,
-                error_text=f"Upstream timeout: {exc}",
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+            raise self._provider_error(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                 detail=build_error_payload("Upstream request timed out."),
-            ) from exc
-        except httpx.HTTPError as exc:
-            duration_ms = self._duration_ms(started_at)
-            self._record_log(
                 public_model=public_model,
                 upstream_model=upstream_model,
-                stream=False,
-                request_body=request_body,
                 upstream_status_code=None,
+                upstream_request_body=request_body,
                 response_body=None,
-                error_text=f"Upstream request failed: {exc}",
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+                error_text=f"Upstream timeout: {exc}",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise self._provider_error(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=build_error_payload(f"Upstream request failed: {exc}"),
+                public_model=public_model,
+                upstream_model=upstream_model,
+                upstream_status_code=None,
+                upstream_request_body=request_body,
+                response_body=None,
+                error_text=f"Upstream request failed: {exc}",
             ) from exc
 
-        duration_ms = self._duration_ms(started_at)
         response_text = self._truncate_text(response.text)
 
         if response.status_code >= 400:
             detail = self._extract_error_detail_from_text(response_text)
-            self._record_log(
-                public_model=public_model,
-                upstream_model=upstream_model,
-                stream=False,
-                request_body=request_body,
-                upstream_status_code=response.status_code,
-                response_body=response_text,
-                error_text=detail,
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+            raise self._provider_error(
                 status_code=response.status_code,
                 detail=build_error_payload(detail),
+                public_model=public_model,
+                upstream_model=upstream_model,
+                upstream_status_code=response.status_code,
+                upstream_request_body=request_body,
+                response_body=response_text,
+                error_text=detail,
             )
 
         try:
             data = response.json()
         except ValueError as exc:
-            self._record_log(
-                public_model=public_model,
-                upstream_model=upstream_model,
-                stream=False,
-                request_body=request_body,
-                upstream_status_code=response.status_code,
-                response_body=response_text,
-                error_text="Upstream returned invalid JSON.",
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+            raise self._provider_error(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=build_error_payload("Upstream returned invalid JSON."),
+                public_model=public_model,
+                upstream_model=upstream_model,
+                upstream_status_code=response.status_code,
+                upstream_request_body=request_body,
+                response_body=response_text,
+                error_text="Upstream returned invalid JSON.",
             ) from exc
 
-        self._record_log(
+        return ChatCompletionResult(
+            data=data,
             public_model=public_model,
             upstream_model=upstream_model,
-            stream=False,
-            request_body=request_body,
             upstream_status_code=response.status_code,
             response_body=response_text,
-            error_text=None,
-            duration_ms=duration_ms,
+            upstream_request_body=request_body,
         )
-        return data
 
     async def create_chat_completion_stream(
         self,
         request: ChatCompletionRequest,
-    ) -> AsyncIterator[str]:
+    ) -> ChatCompletionStreamResult:
         self._validate_config()
 
-        started_at = time.perf_counter()
         public_model, upstream_model = settings.resolve_upstream_model(request.model)
         payload = self._build_payload(request, upstream_model=upstream_model, stream=True)
         request_body = self._serialize_body(payload)
@@ -157,69 +135,91 @@ class OpenAICompatibleProvider(ChatProvider):
             response = await client.send(upstream_request, stream=True)
         except httpx.TimeoutException as exc:
             await client.aclose()
-            duration_ms = self._duration_ms(started_at)
-            self._record_log(
-                public_model=public_model,
-                upstream_model=upstream_model,
-                stream=True,
-                request_body=request_body,
-                upstream_status_code=None,
-                response_body=None,
-                error_text=f"Upstream timeout: {exc}",
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+            raise self._provider_error(
                 status_code=status.HTTP_504_GATEWAY_TIMEOUT,
                 detail=build_error_payload("Upstream request timed out."),
+                public_model=public_model,
+                upstream_model=upstream_model,
+                upstream_status_code=None,
+                upstream_request_body=request_body,
+                response_body=None,
+                error_text=f"Upstream timeout: {exc}",
             ) from exc
         except httpx.HTTPError as exc:
             await client.aclose()
-            duration_ms = self._duration_ms(started_at)
-            self._record_log(
-                public_model=public_model,
-                upstream_model=upstream_model,
-                stream=True,
-                request_body=request_body,
-                upstream_status_code=None,
-                response_body=None,
-                error_text=f"Upstream request failed: {exc}",
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+            raise self._provider_error(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=build_error_payload(f"Upstream request failed: {exc}"),
+                public_model=public_model,
+                upstream_model=upstream_model,
+                upstream_status_code=None,
+                upstream_request_body=request_body,
+                response_body=None,
+                error_text=f"Upstream request failed: {exc}",
             ) from exc
 
         if response.status_code >= 400:
             body_bytes = await response.aread()
             await response.aclose()
             await client.aclose()
-            duration_ms = self._duration_ms(started_at)
             response_text = self._decode_bytes(body_bytes)
             error_text = self._extract_error_detail_from_text(response_text)
-            self._record_log(
-                public_model=public_model,
-                upstream_model=upstream_model,
-                stream=True,
-                request_body=request_body,
-                upstream_status_code=response.status_code,
-                response_body=None,
-                error_text=error_text,
-                duration_ms=duration_ms,
-            )
-            raise HTTPException(
+            raise self._provider_error(
                 status_code=response.status_code,
                 detail=build_error_payload(error_text),
+                public_model=public_model,
+                upstream_model=upstream_model,
+                upstream_status_code=response.status_code,
+                upstream_request_body=request_body,
+                response_body=response_text,
+                error_text=error_text,
             )
 
-        async def event_stream() -> AsyncIterator[str]:
-            seen_done = False
-            error_text: str | None = None
+        telemetry = ChatCompletionStreamResult(
+            stream=self._build_stream(response, client),
+            public_model=public_model,
+            upstream_model=upstream_model,
+            upstream_status_code=response.status_code,
+            upstream_request_body=request_body,
+        )
+        self._bind_stream_telemetry(telemetry, response, client)
+        return telemetry
 
+    def _build_stream(
+        self,
+        response: httpx.Response,
+        client: httpx.AsyncClient,
+    ) -> AsyncIterator[str]:
+        async def event_stream() -> AsyncIterator[str]:
             try:
                 async for line in response.aiter_lines():
-                    if line.startswith("data:") and line.removeprefix("data:").strip() == "[DONE]":
-                        seen_done = True
+                    if line:
+                        yield f"{line}\n"
+                    else:
+                        yield "\n"
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        return event_stream()
+
+    def _bind_stream_telemetry(
+        self,
+        result: ChatCompletionStreamResult,
+        response: httpx.Response,
+        client: httpx.AsyncClient,
+    ) -> None:
+        async def instrumented_stream() -> AsyncIterator[str]:
+            seen_done = False
+            try:
+                async for line in response.aiter_lines():
+                    if line.startswith("data:"):
+                        data_value = line.removeprefix("data:").strip()
+                        if data_value == "[DONE]":
+                            seen_done = True
+                            result.telemetry.completed = True
+                        else:
+                            result.telemetry.chunk_count += 1
 
                     if line:
                         yield f"{line}\n"
@@ -227,27 +227,18 @@ class OpenAICompatibleProvider(ChatProvider):
                         yield "\n"
 
                 if not seen_done:
+                    result.telemetry.completed = True
                     yield "data: [DONE]\n\n"
             except httpx.HTTPError as exc:
-                error_text = f"Upstream stream interrupted: {exc}"
-                yield f"data: {json.dumps(build_error_payload(error_text), ensure_ascii=False)}\n\n"
+                result.telemetry.error_text = f"Upstream stream interrupted: {exc}"
+                yield f"data: {json.dumps(build_error_payload(result.telemetry.error_text), ensure_ascii=False)}\n\n"
                 if not seen_done:
                     yield "data: [DONE]\n\n"
             finally:
                 await response.aclose()
                 await client.aclose()
-                self._record_log(
-                    public_model=public_model,
-                    upstream_model=upstream_model,
-                    stream=True,
-                    request_body=request_body,
-                    upstream_status_code=response.status_code,
-                    response_body=None,
-                    error_text=error_text,
-                    duration_ms=self._duration_ms(started_at),
-                )
 
-        return event_stream()
+        result.stream = instrumented_stream()
 
     def _build_payload(
         self,
@@ -330,29 +321,25 @@ class OpenAICompatibleProvider(ChatProvider):
             return value
         return value[: self.max_logged_body_chars] + "...<truncated>"
 
-    def _duration_ms(self, started_at: float) -> int:
-        return int((time.perf_counter() - started_at) * 1000)
-
-    def _record_log(
+    def _provider_error(
         self,
         *,
+        status_code: int,
+        detail: Any,
         public_model: str | None,
         upstream_model: str | None,
-        stream: bool,
-        request_body: str | None,
         upstream_status_code: int | None,
+        upstream_request_body: str | None,
         response_body: str | None,
         error_text: str | None,
-        duration_ms: int,
-    ) -> None:
-        self.log_service.safe_record_chat(
-            path="/v1/chat/completions",
+    ) -> ProviderGatewayError:
+        return ProviderGatewayError(
+            status_code=status_code,
+            detail=detail,
             public_model=public_model,
             upstream_model=upstream_model,
-            stream=stream,
-            request_body_truncated=request_body,
             upstream_status_code=upstream_status_code,
-            response_body_truncated=response_body,
+            upstream_request_body=upstream_request_body,
+            response_body=response_body,
             error_text=error_text,
-            duration_ms=duration_ms,
         )

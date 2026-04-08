@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>__TITLE__ Desktop</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #081120;
+        --panel: rgba(15, 23, 42, 0.84);
+        --panel-border: rgba(148, 163, 184, 0.18);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --accent: #60a5fa;
+        --accent-strong: #2563eb;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #f87171;
+        --shadow: 0 24px 80px rgba(2, 6, 23, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, rgba(37, 99, 235, 0.35), transparent 30%),
+          linear-gradient(180deg, #081120 0%, #0f172a 100%);
+      }
+
+      .shell {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: 1.2fr 0.8fr;
+        align-items: stretch;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero-main {
+        padding: 32px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(96, 165, 250, 0.12);
+        color: #bfdbfe;
+        font-size: 14px;
+      }
+
+      h1 {
+        margin: 18px 0 12px;
+        font-size: clamp(32px, 4vw, 48px);
+        line-height: 1.1;
+      }
+
+      p {
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 24px;
+      }
+
+      .meta-item {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+      }
+
+      .meta-label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .meta-value {
+        font-size: 16px;
+        word-break: break-all;
+      }
+
+      .status-panel {
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        border: 1px solid transparent;
+      }
+
+      .badge.success {
+        color: #bbf7d0;
+        background: rgba(34, 197, 94, 0.12);
+        border-color: rgba(34, 197, 94, 0.24);
+      }
+
+      .badge.warning {
+        color: #fde68a;
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.24);
+      }
+
+      .badge.danger {
+        color: #fecaca;
+        background: rgba(248, 113, 113, 0.12);
+        border-color: rgba(248, 113, 113, 0.24);
+      }
+
+      .panel-actions,
+      .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      button,
+      .button-link {
+        appearance: none;
+        border: none;
+        border-radius: 14px;
+        padding: 12px 18px;
+        font: inherit;
+        cursor: pointer;
+        transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover,
+      .button-link:hover {
+        transform: translateY(-1px);
+      }
+
+      button.primary,
+      .button-link.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        color: white;
+      }
+
+      button.secondary,
+      .button-link.secondary {
+        background: rgba(148, 163, 184, 0.12);
+        color: var(--text);
+      }
+
+      .button-link {
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 24px;
+        margin-top: 24px;
+      }
+
+      .form-card,
+      .response-card {
+        padding: 28px;
+      }
+
+      .section-title {
+        margin: 0 0 18px;
+        font-size: 22px;
+      }
+
+      .field {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        background: rgba(2, 6, 23, 0.45);
+        color: var(--text);
+        font: inherit;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 180px;
+      }
+
+      .tip,
+      .response-meta,
+      .empty-state {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      pre {
+        margin: 0;
+        border-radius: 18px;
+        padding: 18px;
+        min-height: 320px;
+        background: rgba(2, 6, 23, 0.6);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        color: #dbeafe;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .footer-note {
+        margin-top: 24px;
+        padding: 18px 22px;
+        border-radius: 20px;
+        border: 1px solid rgba(96, 165, 250, 0.18);
+        background: rgba(59, 130, 246, 0.08);
+      }
+
+      @media (max-width: 1080px) {
+        .hero,
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .shell {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="hero">
+        <div class="card hero-main">
+          <div class="eyebrow">Windows 桌面版 · FastAPI + PyWebView</div>
+          <h1 id="app-title"></h1>
+          <p id="app-subtitle"></p>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">本地接口地址</span>
+              <span class="meta-value" id="api-base-url"></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">日志数据库</span>
+              <span class="meta-value" id="log-db-path"></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">默认模型</span>
+              <span class="meta-value" id="default-model"></span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">请求超时</span>
+              <span class="meta-value" id="request-timeout"></span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="card status-panel">
+          <div>
+            <div id="service-badge" class="badge warning">正在检查服务状态…</div>
+          </div>
+          <p id="config-hint"></p>
+          <div class="panel-actions">
+            <button id="health-check-btn" class="primary">检查健康状态</button>
+            <button id="load-models-btn" class="secondary">刷新模型列表</button>
+            <a id="docs-link" class="button-link secondary" href="#">打开接口文档</a>
+          </div>
+          <div class="footer-note">
+            这是桌面窗口壳，内部启动的是本地网关服务。你可以直接在这里测试模型，也可以打开内置 Swagger 文档进行联调。
+          </div>
+        </aside>
+      </section>
+
+      <section class="workspace">
+        <div class="card form-card">
+          <h2 class="section-title">快速测试</h2>
+          <div class="field">
+            <label for="gateway-token">网关 Bearer Token</label>
+            <input id="gateway-token" type="password" placeholder="输入 GATEWAY_API_KEY" />
+          </div>
+          <div class="field">
+            <label for="model-select">模型</label>
+            <select id="model-select"></select>
+          </div>
+          <div class="field">
+            <label for="message-input">用户消息</label>
+            <textarea id="message-input" placeholder="例如：请介绍一下你自己，并简述这个网关的用途。"></textarea>
+          </div>
+          <div class="row-actions">
+            <button id="send-btn" class="primary">发送测试请求</button>
+            <button id="clear-btn" class="secondary">清空结果</button>
+          </div>
+          <p class="tip" id="token-tip"></p>
+        </div>
+
+        <div class="card response-card">
+          <h2 class="section-title">返回结果</h2>
+          <p class="response-meta" id="response-meta">尚未发送请求。</p>
+          <pre id="response-output">等待操作…</pre>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const boot = __BOOTSTRAP_JSON__;
+      const appTitle = document.getElementById("app-title");
+      const appSubtitle = document.getElementById("app-subtitle");
+      const apiBaseUrl = document.getElementById("api-base-url");
+      const logDbPath = document.getElementById("log-db-path");
+      const defaultModel = document.getElementById("default-model");
+      const requestTimeout = document.getElementById("request-timeout");
+      const serviceBadge = document.getElementById("service-badge");
+      const configHint = document.getElementById("config-hint");
+      const gatewayTokenInput = document.getElementById("gateway-token");
+      const modelSelect = document.getElementById("model-select");
+      const messageInput = document.getElementById("message-input");
+      const responseMeta = document.getElementById("response-meta");
+      const responseOutput = document.getElementById("response-output");
+      const tokenTip = document.getElementById("token-tip");
+      const docsLink = document.getElementById("docs-link");
+
+      const DEFAULT_GATEWAY_KEY = "local-dev-token";
+
+      function prettyJson(value) {
+        return JSON.stringify(value, null, 2);
+      }
+
+      function setStatus(text, type) {
+        serviceBadge.textContent = text;
+        serviceBadge.className = `badge ${type}`;
+      }
+
+      function populateModels(models) {
+        const entries = Array.from(new Set(models.filter(Boolean)));
+        modelSelect.innerHTML = "";
+
+        if (!entries.length) {
+          const option = document.createElement("option");
+          option.value = boot.defaultModel;
+          option.textContent = boot.defaultModel;
+          modelSelect.append(option);
+          return;
+        }
+
+        for (const model of entries) {
+          const option = document.createElement("option");
+          option.value = model;
+          option.textContent = model;
+          modelSelect.append(option);
+        }
+
+        modelSelect.value = entries.includes(boot.defaultModel) ? boot.defaultModel : entries[0];
+      }
+
+      async function callApi(path, options = {}) {
+        const token = gatewayTokenInput.value.trim();
+        const headers = new Headers(options.headers || {});
+
+        if (token) {
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+
+        if (options.body && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+
+        const response = await fetch(`${boot.apiBaseUrl}${path}`, {
+          ...options,
+          headers,
+        });
+
+        const text = await response.text();
+        let payload = text;
+
+        try {
+          payload = text ? JSON.parse(text) : {};
+        } catch (error) {
+          payload = text;
+        }
+
+        if (!response.ok) {
+          throw new Error(typeof payload === "string" ? payload : prettyJson(payload));
+        }
+
+        return payload;
+      }
+
+      async function refreshHealth() {
+        try {
+          setStatus("正在检查服务状态…", "warning");
+          const data = await callApi("/health", { method: "GET" });
+          setStatus(`服务运行中：${data.status}`, "success");
+          responseMeta.textContent = "最近一次操作：健康检查成功。";
+        } catch (error) {
+          setStatus("服务可访问，但鉴权或配置仍需确认", "warning");
+          responseMeta.textContent = "最近一次操作：健康检查失败。";
+          responseOutput.textContent = String(error.message || error);
+        }
+      }
+
+      async function refreshModels() {
+        try {
+          const data = await callApi("/v1/models", { method: "GET" });
+          const models = Array.isArray(data.data) ? data.data.map((item) => item.id) : [];
+          populateModels(models);
+          responseMeta.textContent = `最近一次操作：模型列表已刷新，共 ${models.length} 个模型。`;
+          responseOutput.textContent = prettyJson(data);
+        } catch (error) {
+          responseMeta.textContent = "最近一次操作：模型列表刷新失败。";
+          responseOutput.textContent = String(error.message || error);
+        }
+      }
+
+      async function sendChat() {
+        const content = messageInput.value.trim();
+        if (!content) {
+          responseMeta.textContent = "请先输入一条消息。";
+          responseOutput.textContent = "消息不能为空。";
+          return;
+        }
+
+        const payload = {
+          model: modelSelect.value || boot.defaultModel,
+          stream: false,
+          messages: [
+            {
+              role: "user",
+              content,
+            },
+          ],
+        };
+
+        try {
+          responseMeta.textContent = "请求发送中…";
+          responseOutput.textContent = prettyJson(payload);
+          const data = await callApi("/v1/chat/completions", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          responseMeta.textContent = `请求完成：模型 ${payload.model}`;
+          responseOutput.textContent = prettyJson(data);
+        } catch (error) {
+          responseMeta.textContent = "请求失败。";
+          responseOutput.textContent = String(error.message || error);
+        }
+      }
+
+      function clearOutput() {
+        responseMeta.textContent = "已清空结果。";
+        responseOutput.textContent = "等待操作…";
+      }
+
+      function initialize() {
+        appTitle.textContent = `${boot.appName} 桌面版`;
+        appSubtitle.textContent = boot.upstreamConfigured
+          ? "本地网关服务已经具备上游配置，可以直接在窗口中调试模型请求。"
+          : "当前还没有完整配置上游模型服务。你可以先完善 .env，再重新启动桌面程序。";
+        apiBaseUrl.textContent = boot.apiBaseUrl;
+        logDbPath.textContent = boot.logDbPath;
+        defaultModel.textContent = boot.defaultModel;
+        requestTimeout.textContent = `${boot.requestTimeoutSeconds} 秒`;
+        docsLink.href = `${boot.apiBaseUrl}/docs`;
+        docsLink.target = "_self";
+
+        const savedToken = window.localStorage.getItem("gateway-token") || "";
+        gatewayTokenInput.value = savedToken || (boot.usingDefaultGatewayKey ? DEFAULT_GATEWAY_KEY : "");
+        tokenTip.textContent = boot.usingDefaultGatewayKey
+          ? "当前项目仍在使用默认网关密钥，已自动填入 local-dev-token。"
+          : "检测到你使用了自定义 GATEWAY_API_KEY，请输入后再请求接口。";
+        configHint.textContent = boot.upstreamConfigured
+          ? "上游模型地址和 API Key 已配置，可以直接测试接口。"
+          : "OPENAI_BASE_URL 或 OPENAI_API_KEY 为空，聊天请求会失败。";
+
+        populateModels(boot.availableModels);
+        setStatus("桌面窗口已启动，等待接口验证", boot.upstreamConfigured ? "success" : "warning");
+        messageInput.value = "请用简短文字介绍这个桌面网关软件。";
+      }
+
+      gatewayTokenInput.addEventListener("change", () => {
+        window.localStorage.setItem("gateway-token", gatewayTokenInput.value.trim());
+      });
+
+      document.getElementById("health-check-btn").addEventListener("click", refreshHealth);
+      document.getElementById("load-models-btn").addEventListener("click", refreshModels);
+      document.getElementById("send-btn").addEventListener("click", sendChat);
+      document.getElementById("clear-btn").addEventListener("click", clearOutput);
+
+      initialize();
+    </script>
+  </body>
+</html>

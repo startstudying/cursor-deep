@@ -12,14 +12,23 @@ _db_init_lock = Lock()
 _EXPECTED_COLUMNS: dict[str, str] = {
     "created_at": "TEXT NOT NULL DEFAULT ''",
     "path": "TEXT NOT NULL DEFAULT ''",
+    "requested_model": "TEXT",
     "public_model": "TEXT",
     "upstream_model": "TEXT",
     "stream": "INTEGER NOT NULL DEFAULT 0",
     "request_body_truncated": "TEXT",
+    "upstream_request_body_truncated": "TEXT",
     "upstream_status_code": "INTEGER",
+    "gateway_status_code": "INTEGER",
     "response_body_truncated": "TEXT",
     "error_text": "TEXT",
     "duration_ms": "INTEGER NOT NULL DEFAULT 0",
+    "client_ip": "TEXT",
+    "user_agent": "TEXT",
+    "request_message_count": "INTEGER NOT NULL DEFAULT 0",
+    "request_user": "TEXT",
+    "response_chunk_count": "INTEGER NOT NULL DEFAULT 0",
+    "stream_completed": "INTEGER NOT NULL DEFAULT 0",
 }
 
 
@@ -47,14 +56,23 @@ def init_db() -> None:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     created_at TEXT NOT NULL,
                     path TEXT NOT NULL,
+                    requested_model TEXT,
                     public_model TEXT,
                     upstream_model TEXT,
                     stream INTEGER NOT NULL,
                     request_body_truncated TEXT,
+                    upstream_request_body_truncated TEXT,
                     upstream_status_code INTEGER,
+                    gateway_status_code INTEGER,
                     response_body_truncated TEXT,
                     error_text TEXT,
-                    duration_ms INTEGER NOT NULL
+                    duration_ms INTEGER NOT NULL,
+                    client_ip TEXT,
+                    user_agent TEXT,
+                    request_message_count INTEGER NOT NULL,
+                    request_user TEXT,
+                    response_chunk_count INTEGER NOT NULL,
+                    stream_completed INTEGER NOT NULL
                 )
                 """
             )

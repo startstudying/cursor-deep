@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import HTTPException
 
 from app.schemas.chat import ChatCompletionRequest
+from app.schemas.responses import ResponseCreateRequest
 
 
 @dataclass(slots=True)
@@ -71,5 +72,19 @@ class ChatProvider(ABC):
     async def create_chat_completion_stream(
         self,
         request: ChatCompletionRequest,
+    ) -> ChatCompletionStreamResult:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def create_response(
+        self,
+        request: ResponseCreateRequest,
+    ) -> ChatCompletionResult:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def create_response_stream(
+        self,
+        request: ResponseCreateRequest,
     ) -> ChatCompletionStreamResult:
         raise NotImplementedError

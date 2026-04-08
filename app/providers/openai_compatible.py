@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -17,6 +16,7 @@ from app.providers.base import (
     ProviderGatewayError,
 )
 from app.schemas.chat import ChatCompletionRequest
+from app.schemas.responses import ResponseCreateRequest
 
 
 class OpenAICompatibleProvider(ChatProvider):
@@ -43,13 +43,104 @@ class OpenAICompatibleProvider(ChatProvider):
         self._validate_config()
 
         public_model, upstream_model = settings.resolve_upstream_model(request.model)
-        payload = self._build_payload(request, upstream_model=upstream_model, stream=False)
+        payload = self._build_chat_payload(request, upstream_model=upstream_model, stream=False)
         request_body = self._serialize_body(payload)
+        return await self._post_json(
+            endpoint=settings.upstream_chat_path,
+            payload=payload,
+            request_body=request_body,
+            public_model=public_model,
+            upstream_model=upstream_model,
+        )
 
+    async def create_chat_completion_stream(
+        self,
+        request: ChatCompletionRequest,
+    ) -> ChatCompletionStreamResult:
+        self._validate_config()
+
+        public_model, upstream_model = settings.resolve_upstream_model(request.model)
+        payload = self._build_chat_payload(request, upstream_model=upstream_model, stream=True)
+        request_body = self._serialize_body(payload)
+        return await self._post_stream(
+            endpoint=settings.upstream_chat_path,
+            payload=payload,
+            request_body=request_body,
+            public_model=public_model,
+            upstream_model=upstream_model,
+        )
+
+    async def create_response(
+        self,
+        request: ResponseCreateRequest,
+    ) -> ChatCompletionResult:
+        self._validate_config()
+
+        if not settings.upstream_supports_responses:
+            raise self._provider_error(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail=build_error_payload("Upstream /responses is disabled."),
+                public_model=None,
+                upstream_model=None,
+                upstream_status_code=None,
+                upstream_request_body=None,
+                response_body=None,
+                error_text="Upstream /responses is disabled.",
+            )
+
+        public_model, upstream_model = settings.resolve_upstream_model(request.model)
+        payload = self._build_response_payload(request, upstream_model=upstream_model, stream=False)
+        request_body = self._serialize_body(payload)
+        return await self._post_json(
+            endpoint=settings.upstream_responses_path,
+            payload=payload,
+            request_body=request_body,
+            public_model=public_model,
+            upstream_model=upstream_model,
+        )
+
+    async def create_response_stream(
+        self,
+        request: ResponseCreateRequest,
+    ) -> ChatCompletionStreamResult:
+        self._validate_config()
+
+        if not settings.upstream_supports_responses:
+            raise self._provider_error(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail=build_error_payload("Upstream /responses is disabled."),
+                public_model=None,
+                upstream_model=None,
+                upstream_status_code=None,
+                upstream_request_body=None,
+                response_body=None,
+                error_text="Upstream /responses is disabled.",
+            )
+
+        public_model, upstream_model = settings.resolve_upstream_model(request.model)
+        payload = self._build_response_payload(request, upstream_model=upstream_model, stream=True)
+        request_body = self._serialize_body(payload)
+        return await self._post_stream(
+            endpoint=settings.upstream_responses_path,
+            payload=payload,
+            request_body=request_body,
+            public_model=public_model,
+            upstream_model=upstream_model,
+        )
+
+    async def _post_json(
+        self,
+        *,
+        endpoint: str,
+        payload: dict[str, Any],
+        request_body: str,
+        public_model: str | None,
+        upstream_model: str | None,
+    ) -> ChatCompletionResult:
         try:
             async with httpx.AsyncClient(timeout=self.request_timeout_seconds) as client:
                 response = await client.post(
-                    f"{self.base_url}/chat/completions",
+                    self._build_url(endpoint),
                     headers=self._build_headers(),
                     json=payload,
                 )
@@ -114,21 +205,21 @@ class OpenAICompatibleProvider(ChatProvider):
             upstream_request_body=request_body,
         )
 
-    async def create_chat_completion_stream(
+    async def _post_stream(
         self,
-        request: ChatCompletionRequest,
+        *,
+        endpoint: str,
+        payload: dict[str, Any],
+        request_body: str,
+        public_model: str | None,
+        upstream_model: str | None,
     ) -> ChatCompletionStreamResult:
-        self._validate_config()
-
-        public_model, upstream_model = settings.resolve_upstream_model(request.model)
-        payload = self._build_payload(request, upstream_model=upstream_model, stream=True)
-        request_body = self._serialize_body(payload)
         client = httpx.AsyncClient(timeout=self.request_timeout_seconds)
 
         try:
             upstream_request = client.build_request(
                 "POST",
-                f"{self.base_url}/chat/completions",
+                self._build_url(endpoint),
                 headers=self._build_headers(accept_sse=True),
                 json=payload,
             )
@@ -175,15 +266,15 @@ class OpenAICompatibleProvider(ChatProvider):
                 error_text=error_text,
             )
 
-        telemetry = ChatCompletionStreamResult(
+        result = ChatCompletionStreamResult(
             stream=self._build_stream(response, client),
             public_model=public_model,
             upstream_model=upstream_model,
             upstream_status_code=response.status_code,
             upstream_request_body=request_body,
         )
-        self._bind_stream_telemetry(telemetry, response, client)
-        return telemetry
+        self._bind_stream_telemetry(result, response, client)
+        return result
 
     def _build_stream(
         self,
@@ -240,9 +331,25 @@ class OpenAICompatibleProvider(ChatProvider):
 
         result.stream = instrumented_stream()
 
-    def _build_payload(
+    def _build_chat_payload(
         self,
         request: ChatCompletionRequest,
+        *,
+        upstream_model: str,
+        stream: bool,
+    ) -> dict[str, Any]:
+        payload = request.model_dump(exclude_none=True)
+        payload["model"] = upstream_model or self.default_model
+        payload["stream"] = stream
+
+        for field_name in self.drop_fields:
+            payload.pop(field_name, None)
+
+        return payload
+
+    def _build_response_payload(
+        self,
+        request: ResponseCreateRequest,
         *,
         upstream_model: str,
         stream: bool,
@@ -264,6 +371,10 @@ class OpenAICompatibleProvider(ChatProvider):
         if accept_sse:
             headers["Accept"] = "text/event-stream"
         return headers
+
+    def _build_url(self, endpoint: str) -> str:
+        normalized_endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
+        return f"{self.base_url}{normalized_endpoint}"
 
     def _validate_config(self) -> None:
         if not self.base_url:

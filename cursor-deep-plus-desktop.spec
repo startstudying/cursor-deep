@@ -9,7 +9,7 @@ a = Analysis(
     ['desktop_app.py'],
     pathex=[],
     binaries=[],
-    datas=[('app/desktop/index.html', 'app/desktop'), ('assets/app.ico', 'assets')],
+    datas=[('app/desktop/index.html', 'app/desktop'), ('assets/app.ico', 'assets'), ('.env.example', '.')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

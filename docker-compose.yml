@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  cursor-deep-plus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cursor-deep-plus
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file:
+      - .env
+    environment:
+      LOG_DB_PATH: /data/chat_logs.db
+      ENABLE_DESKTOP_ROUTES: "false"
+    volumes:
+      - ./data:/data

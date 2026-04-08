@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import socket
 import sys
 import threading
@@ -9,8 +10,6 @@ from pathlib import Path
 
 import uvicorn
 
-from app.config import settings
-
 try:
     import webview
 except ImportError as exc:  # pragma: no cover - startup dependency guard
@@ -18,17 +17,85 @@ except ImportError as exc:  # pragma: no cover - startup dependency guard
         "pywebview is not installed. Run `pip install -r requirements.txt` before starting the desktop app."
     ) from exc
 
+DEFAULT_APP_NAME = "cursor-deep-plus"
+DEFAULT_PORT = 8787
+DEFAULT_ENV_TEMPLATE = """APP_NAME=cursor-deep-plus
+HOST=0.0.0.0
+PORT=8787
+
+OPENAI_BASE_URL=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+
+PUBLIC_MODEL_NAME=cursor-proxy
+MODEL_MAP_JSON={\"cursor-proxy\":\"gpt-4o-mini\",\"cursor-fast\":\"gpt-4.1-mini\"}
+
+GATEWAY_API_KEY=local-dev-token
+REQUEST_TIMEOUT_SECONDS=600
+LOG_DB_PATH=storage/chat_logs.db
+MAX_LOGGED_BODY_CHARS=12000
+DROP_FIELDS=
+"""
+
+
+def _runtime_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def _bundle_root() -> Path:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    return _runtime_root()
+
+
+def _user_data_dir() -> Path:
+    base_dir = Path(os.getenv("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+    return base_dir / DEFAULT_APP_NAME
+
+
+def _preferred_env_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return _user_data_dir() / ".env"
+    return _runtime_root() / ".env"
+
+
+def _env_template() -> str:
+    candidates = [
+        _runtime_root() / ".env.example",
+        _bundle_root() / ".env.example",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.read_text(encoding="utf-8")
+
+    return DEFAULT_ENV_TEMPLATE
+
+
+def _ensure_env_file() -> Path:
+    env_path = _preferred_env_path()
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+
+    created = False
+    if not env_path.exists():
+        env_path.write_text(_env_template().rstrip() + "\n", encoding="utf-8")
+        created = True
+
+    os.environ["CURSOR_DEEP_ENV_FILE"] = str(env_path)
+    os.environ["CURSOR_DEEP_ENV_AUTOCREATED"] = "1" if created else "0"
+    os.environ["CURSOR_DEEP_ENV_FIRST_LAUNCH"] = "1" if created else "0"
+    return env_path
+
 
 def _icon_path() -> str | None:
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        candidate = Path(sys._MEIPASS) / "assets" / "app.ico"
-    else:
-        candidate = Path(__file__).resolve().parent / "assets" / "app.ico"
+    candidate = _bundle_root() / "assets" / "app.ico"
     return str(candidate) if candidate.exists() else None
 
 
 class DesktopServer:
-    def __init__(self, host: str = "127.0.0.1", preferred_port: int = settings.port) -> None:
+    def __init__(self, host: str = "127.0.0.1", preferred_port: int = DEFAULT_PORT) -> None:
         self.host = host
         self.port = self._find_free_port(preferred_port)
         self._server = uvicorn.Server(
@@ -84,7 +151,11 @@ class DesktopServer:
 
 
 def main() -> None:
-    server = DesktopServer()
+    _ensure_env_file()
+
+    from app.config import settings
+
+    server = DesktopServer(preferred_port=settings.port)
     server.start()
 
     window = webview.create_window(

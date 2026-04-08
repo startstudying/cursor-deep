@@ -7,7 +7,8 @@ $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($CompilerPath)) {
     $candidates = @(
         "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-        "C:\Program Files\Inno Setup 6\ISCC.exe"
+        "C:\Program Files\Inno Setup 6\ISCC.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
     )
 
     $CompilerPath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1

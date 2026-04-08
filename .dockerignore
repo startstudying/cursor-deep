@@ -3,4 +3,10 @@ __pycache__/
 .venv/
 .env
 storage/*.db
+data/
 .git/
+dist/
+installer-dist/
+*.exe
+*.spec
+assets/

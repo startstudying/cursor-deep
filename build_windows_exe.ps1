@@ -15,6 +15,7 @@ $ErrorActionPreference = "Stop"
   --collect-submodules webview `
   --add-data "app/desktop/index.html;app/desktop" `
   --add-data "assets/app.ico;assets" `
+  --add-data ".env.example;." `
   desktop_app.py
 
 Write-Host "Build finished. EXE output:" -ForegroundColor Green

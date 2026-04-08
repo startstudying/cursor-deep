@@ -166,6 +166,12 @@
         transform: translateY(-1px);
       }
 
+      button:disabled {
+        cursor: wait;
+        opacity: 0.72;
+        transform: none;
+      }
+
       button.primary,
       .button-link.primary {
         background: linear-gradient(135deg, var(--accent), var(--accent-strong));
@@ -178,11 +184,52 @@
         color: var(--text);
       }
 
+      button.ghost {
+        background: rgba(96, 165, 250, 0.08);
+        color: #bfdbfe;
+        border: 1px solid rgba(96, 165, 250, 0.2);
+      }
+
       .button-link {
         text-decoration: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+      }
+
+      .onboarding-card,
+      .config-card {
+        margin-top: 24px;
+        padding: 28px;
+      }
+
+      .onboarding-grid,
+      .config-grid,
+      .quick-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .onboarding-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 20px;
+      }
+
+      .config-grid,
+      .quick-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 20px;
+      }
+
+      .setup-steps {
+        margin: 20px 0 0;
+        padding-left: 22px;
+        color: var(--text);
+        line-height: 1.8;
+      }
+
+      .setup-steps li + li {
+        margin-top: 6px;
       }
 
       .workspace {
@@ -202,10 +249,19 @@
         font-size: 22px;
       }
 
+      .section-desc {
+        margin-top: -6px;
+        margin-bottom: 4px;
+      }
+
       .field {
         display: grid;
         gap: 8px;
         margin-bottom: 18px;
+      }
+
+      .field.full {
+        grid-column: 1 / -1;
       }
 
       .field label {
@@ -230,12 +286,24 @@
         min-height: 180px;
       }
 
+      #model-map-json {
+        min-height: 132px;
+      }
+
+      .hint,
       .tip,
       .response-meta,
-      .empty-state {
+      .empty-state,
+      .form-note {
         color: var(--muted);
         font-size: 14px;
         line-height: 1.7;
+      }
+
+      .inline-code {
+        font-family: Consolas, "SFMono-Regular", monospace;
+        font-size: 13px;
+        color: #bfdbfe;
       }
 
       pre {
@@ -261,7 +329,10 @@
 
       @media (max-width: 1080px) {
         .hero,
-        .workspace {
+        .workspace,
+        .onboarding-grid,
+        .config-grid,
+        .quick-grid {
           grid-template-columns: 1fr;
         }
 
@@ -309,25 +380,95 @@
             <a id="docs-link" class="button-link secondary" href="#">打开接口文档</a>
           </div>
           <div class="footer-note">
-            这是桌面窗口壳，内部启动的是本地网关服务。你可以直接在这里测试模型，也可以打开内置 Swagger 文档进行联调。
+            现在可以直接在下方界面里填写 API URL、API Key、模型映射等配置，无需手动打开 `.env`。
+            保存后会自动应用，新配置会立刻用于后续请求。
           </div>
         </aside>
+      </section>
+
+      <section class="card onboarding-card">
+        <div class="eyebrow">首次启动引导</div>
+        <h2 class="section-title" id="onboarding-title"></h2>
+        <p id="onboarding-summary"></p>
+        <div class="onboarding-grid">
+          <div class="meta-item">
+            <span class="meta-label">.env 文件位置</span>
+            <span class="meta-value" id="env-file-path"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">配置文件状态</span>
+            <span class="meta-value" id="env-file-status"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">用户数据目录</span>
+            <span class="meta-value" id="data-dir"></span>
+          </div>
+        </div>
+        <ol class="setup-steps" id="setup-steps"></ol>
+      </section>
+
+      <section class="card config-card">
+        <div class="eyebrow">配置中心</div>
+        <h2 class="section-title">在界面里填写上游 API 配置</h2>
+        <p class="section-desc">
+          这里填写的内容会保存到
+          <span class="inline-code" id="env-file-inline"></span>
+          。
+        </p>
+        <div class="config-grid">
+          <div class="field">
+            <label for="upstream-base-url">上游 API URL</label>
+            <input id="upstream-base-url" type="text" placeholder="例如：https://api.openai.com/v1" />
+          </div>
+          <div class="field">
+            <label for="upstream-api-key">上游 API Key</label>
+            <input id="upstream-api-key" type="password" placeholder="输入 OPENAI_API_KEY" />
+          </div>
+          <div class="field">
+            <label for="default-model-input">默认上游模型</label>
+            <input id="default-model-input" type="text" placeholder="例如：gpt-4o-mini" />
+          </div>
+          <div class="field">
+            <label for="public-model-name">对外模型名称</label>
+            <input id="public-model-name" type="text" placeholder="例如：cursor-proxy" />
+          </div>
+          <div class="field">
+            <label for="gateway-api-key-input">网关 Bearer Token</label>
+            <input id="gateway-api-key-input" type="password" placeholder="输入 GATEWAY_API_KEY" />
+          </div>
+          <div class="field">
+            <label for="request-timeout-input">请求超时（秒）</label>
+            <input id="request-timeout-input" type="number" min="1" step="1" placeholder="600" />
+          </div>
+          <div class="field full">
+            <label for="model-map-json">模型映射 JSON</label>
+            <textarea id="model-map-json" placeholder='例如：{"cursor-proxy":"gpt-4o-mini","cursor-fast":"gpt-4.1-mini"}'></textarea>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button id="save-config-btn" class="primary">保存配置</button>
+          <button id="reload-config-btn" class="ghost">重新读取配置</button>
+        </div>
+        <p class="form-note" id="config-save-tip"></p>
       </section>
 
       <section class="workspace">
         <div class="card form-card">
           <h2 class="section-title">快速测试</h2>
-          <div class="field">
-            <label for="gateway-token">网关 Bearer Token</label>
-            <input id="gateway-token" type="password" placeholder="输入 GATEWAY_API_KEY" />
-          </div>
-          <div class="field">
-            <label for="model-select">模型</label>
-            <select id="model-select"></select>
-          </div>
-          <div class="field">
-            <label for="message-input">用户消息</label>
-            <textarea id="message-input" placeholder="例如：请介绍一下你自己，并简述这个网关的用途。"></textarea>
+          <p class="section-desc">保存后会自动应用，你可以直接在这里验证接口是否可用。</p>
+          <div class="quick-grid">
+            <div class="field full">
+              <label for="gateway-token">网关 Bearer Token</label>
+              <input id="gateway-token" type="password" placeholder="输入 GATEWAY_API_KEY" />
+            </div>
+            <div class="field full">
+              <label for="model-select">模型</label>
+              <select id="model-select"></select>
+            </div>
+            <div class="field full">
+              <label for="message-input">用户消息</label>
+              <textarea id="message-input" placeholder="例如：请介绍一下你自己，并简述这个网关的用途。"></textarea>
+            </div>
           </div>
           <div class="row-actions">
             <button id="send-btn" class="primary">发送测试请求</button>
@@ -361,8 +502,28 @@
       const responseOutput = document.getElementById("response-output");
       const tokenTip = document.getElementById("token-tip");
       const docsLink = document.getElementById("docs-link");
+      const onboardingTitle = document.getElementById("onboarding-title");
+      const onboardingSummary = document.getElementById("onboarding-summary");
+      const envFilePath = document.getElementById("env-file-path");
+      const envFileStatus = document.getElementById("env-file-status");
+      const dataDir = document.getElementById("data-dir");
+      const setupSteps = document.getElementById("setup-steps");
+      const envFileInline = document.getElementById("env-file-inline");
+      const upstreamBaseUrlInput = document.getElementById("upstream-base-url");
+      const upstreamApiKeyInput = document.getElementById("upstream-api-key");
+      const defaultModelInput = document.getElementById("default-model-input");
+      const publicModelNameInput = document.getElementById("public-model-name");
+      const gatewayApiKeyInput = document.getElementById("gateway-api-key-input");
+      const requestTimeoutInput = document.getElementById("request-timeout-input");
+      const modelMapJsonInput = document.getElementById("model-map-json");
+      const saveConfigBtn = document.getElementById("save-config-btn");
+      const reloadConfigBtn = document.getElementById("reload-config-btn");
+      const configSaveTip = document.getElementById("config-save-tip");
 
       const DEFAULT_GATEWAY_KEY = "local-dev-token";
+      const state = {
+        editableConfig: { ...(boot.editableConfig || {}) },
+      };
 
       function prettyJson(value) {
         return JSON.stringify(value, null, 2);
@@ -371,6 +532,24 @@
       function setStatus(text, type) {
         serviceBadge.textContent = text;
         serviceBadge.className = `badge ${type}`;
+      }
+
+      function setButtonsDisabled(disabled) {
+        saveConfigBtn.disabled = disabled;
+        reloadConfigBtn.disabled = disabled;
+      }
+
+      function syncBootState(config = {}) {
+        if (config.defaultModel) {
+          boot.defaultModel = config.defaultModel;
+        }
+        if (config.requestTimeoutSeconds) {
+          boot.requestTimeoutSeconds = config.requestTimeoutSeconds;
+        }
+        if (config.gatewayApiKey) {
+          boot.usingDefaultGatewayKey = config.gatewayApiKey === DEFAULT_GATEWAY_KEY;
+        }
+        boot.upstreamConfigured = Boolean(config.upstreamBaseUrl && config.upstreamApiKey);
       }
 
       function populateModels(models) {
@@ -393,6 +572,55 @@
         }
 
         modelSelect.value = entries.includes(boot.defaultModel) ? boot.defaultModel : entries[0];
+      }
+
+      function renderSetupSteps(steps) {
+        setupSteps.innerHTML = "";
+        for (const step of steps) {
+          const item = document.createElement("li");
+          item.textContent = step;
+          setupSteps.appendChild(item);
+        }
+      }
+
+      function applyEditableConfig(config) {
+        const nextConfig = {
+          upstreamBaseUrl: config.upstreamBaseUrl || "",
+          upstreamApiKey: config.upstreamApiKey || "",
+          defaultModel: config.defaultModel || boot.defaultModel || "",
+          publicModelName: config.publicModelName || "",
+          modelMapJson: config.modelMapJson || "",
+          gatewayApiKey: config.gatewayApiKey || "",
+          requestTimeoutSeconds: config.requestTimeoutSeconds || boot.requestTimeoutSeconds || 600,
+        };
+
+        state.editableConfig = nextConfig;
+        syncBootState(nextConfig);
+        upstreamBaseUrlInput.value = nextConfig.upstreamBaseUrl;
+        upstreamApiKeyInput.value = nextConfig.upstreamApiKey;
+        defaultModelInput.value = nextConfig.defaultModel;
+        publicModelNameInput.value = nextConfig.publicModelName;
+        gatewayApiKeyInput.value = nextConfig.gatewayApiKey;
+        requestTimeoutInput.value = String(nextConfig.requestTimeoutSeconds);
+        modelMapJsonInput.value = nextConfig.modelMapJson;
+
+        const rememberedToken = window.localStorage.getItem("gateway-token") || "";
+        gatewayTokenInput.value = rememberedToken || nextConfig.gatewayApiKey || "";
+        envFileInline.textContent = boot.envFilePath;
+        defaultModel.textContent = nextConfig.defaultModel || "-";
+        requestTimeout.textContent = `${nextConfig.requestTimeoutSeconds} 秒`;
+      }
+
+      function refreshStaticTexts() {
+        appSubtitle.textContent = boot.upstreamConfigured
+          ? "本地网关服务已经具备上游配置，可以直接在窗口中调试模型请求。"
+          : "当前还没有完整配置上游模型服务。你可以直接在下方界面里填写并保存。";
+        tokenTip.textContent = boot.usingDefaultGatewayKey
+          ? "当前运行实例正在使用默认网关密钥；如需修改，可在上方配置中心保存后立即生效。"
+          : "你可以直接在上方配置中心修改 GATEWAY_API_KEY，保存后会立即生效。";
+        configHint.textContent = boot.upstreamConfigured
+          ? "当前运行实例已经有可用的上游配置；你现在修改并保存后会立即生效。"
+          : "请先在下方配置中心填写 API URL、API Key 和模型设置，保存后会立即应用。";
       }
 
       async function callApi(path, options = {}) {
@@ -428,6 +656,81 @@
         return payload;
       }
 
+      async function refreshConfig() {
+        try {
+          setButtonsDisabled(true);
+          configSaveTip.textContent = "正在读取当前配置…";
+          const data = await fetch(`${boot.apiBaseUrl}/desktop/config`).then(async (response) => {
+            const text = await response.text();
+            const payload = text ? JSON.parse(text) : {};
+            if (!response.ok) {
+              throw new Error(prettyJson(payload));
+            }
+            return payload;
+          });
+          applyEditableConfig(data.config || {});
+          refreshStaticTexts();
+          configSaveTip.textContent = `已从 ${data.envFilePath || boot.envFilePath} 读取当前配置。`;
+        } catch (error) {
+          configSaveTip.textContent = `读取配置失败：${String(error.message || error)}`;
+        } finally {
+          setButtonsDisabled(false);
+        }
+      }
+
+      async function saveConfig() {
+        const payload = {
+          upstreamBaseUrl: upstreamBaseUrlInput.value.trim(),
+          upstreamApiKey: upstreamApiKeyInput.value.trim(),
+          defaultModel: defaultModelInput.value.trim(),
+          publicModelName: publicModelNameInput.value.trim(),
+          modelMapJson: modelMapJsonInput.value.trim(),
+          gatewayApiKey: gatewayApiKeyInput.value.trim(),
+          requestTimeoutSeconds: Number.parseInt(requestTimeoutInput.value.trim() || "600", 10),
+        };
+
+        if (!payload.requestTimeoutSeconds || payload.requestTimeoutSeconds < 1) {
+          configSaveTip.textContent = "请求超时必须是大于 0 的整数。";
+          return;
+        }
+
+        try {
+          setButtonsDisabled(true);
+          configSaveTip.textContent = "正在保存配置…";
+          const data = await fetch(`${boot.apiBaseUrl}/desktop/config`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }).then(async (response) => {
+            const text = await response.text();
+            const result = text ? JSON.parse(text) : {};
+            if (!response.ok) {
+              throw new Error(typeof result === "string" ? result : prettyJson(result));
+            }
+            return result;
+          });
+
+          applyEditableConfig(data.savedConfig || payload);
+          populateModels(Array.isArray(data.availableModels) ? data.availableModels : boot.availableModels);
+          boot.availableModels = Array.isArray(data.availableModels) ? data.availableModels : boot.availableModels;
+          gatewayTokenInput.value = payload.gatewayApiKey;
+          window.localStorage.setItem("gateway-token", payload.gatewayApiKey);
+          refreshStaticTexts();
+          configSaveTip.textContent = data.message || "配置保存成功。";
+          responseMeta.textContent = "配置已保存并自动应用。";
+          responseOutput.textContent = prettyJson(data);
+          setStatus("配置已自动应用", "success");
+        } catch (error) {
+          configSaveTip.textContent = `保存失败：${String(error.message || error)}`;
+          responseMeta.textContent = "配置保存失败。";
+          responseOutput.textContent = String(error.message || error);
+        } finally {
+          setButtonsDisabled(false);
+        }
+      }
+
       async function refreshHealth() {
         try {
           setStatus("正在检查服务状态…", "warning");
@@ -446,6 +749,7 @@
           const data = await callApi("/v1/models", { method: "GET" });
           const models = Array.isArray(data.data) ? data.data.map((item) => item.id) : [];
           populateModels(models);
+          boot.availableModels = models;
           responseMeta.textContent = `最近一次操作：模型列表已刷新，共 ${models.length} 个模型。`;
           responseOutput.textContent = prettyJson(data);
         } catch (error) {
@@ -493,29 +797,73 @@
         responseOutput.textContent = "等待操作…";
       }
 
+      function initializeOnboarding() {
+        envFilePath.textContent = boot.envFilePath;
+        dataDir.textContent = boot.dataDir;
+
+        if (boot.isFirstLaunch) {
+          onboardingTitle.textContent = "首次启动时已自动生成 .env 配置文件";
+          onboardingSummary.textContent = "你现在只需要在下方配置中心补全上游 API 地址、API Key 和模型设置，保存后就可以开始测试。";
+          envFileStatus.textContent = boot.envAutoCreated ? "已自动生成" : "已存在";
+          renderSetupSteps([
+            "在下方“配置中心”填写上游 API URL。",
+            "填写 OPENAI_API_KEY 对应的密钥。",
+            "确认默认模型、对外模型名和模型映射 JSON。",
+            "点击“保存配置”。",
+            "直接在当前窗口测试聊天请求。",
+          ]);
+          responseMeta.textContent = "首次启动引导已准备好。";
+          responseOutput.textContent = [
+            "已自动生成 .env 文件。",
+            "",
+            `配置文件位置：${boot.envFilePath}`,
+            "",
+            "接下来请在界面里填写：",
+            "- 上游 API URL",
+            "- 上游 API Key",
+            "- 默认模型 / 模型映射",
+            "- 可选：网关 Bearer Token",
+            "",
+            "保存后会自动应用。",
+          ].join("\n");
+          return;
+        }
+
+        envFileStatus.textContent = boot.envFileExists ? "已存在" : "未发现";
+
+        if (boot.upstreamConfigured) {
+          onboardingTitle.textContent = "配置已经就绪，可以直接使用";
+          onboardingSummary.textContent = "检测到当前运行实例已经具备上游配置，你可以继续测试；如果修改了下方配置，保存后也会立即生效。";
+          renderSetupSteps([
+            "如需修改 API URL 或 API Key，可直接在下方配置中心调整。",
+            "点击“保存配置”立即应用新配置。",
+            "然后点击“检查健康状态”和“刷新模型列表”进行验证。",
+          ]);
+        } else {
+          onboardingTitle.textContent = "当前仍需补全上游配置";
+          onboardingSummary.textContent = "桌面软件已经准备好配置文件，但当前运行实例尚未检测到完整上游配置。请直接在下方界面填写并保存。";
+          renderSetupSteps([
+            "在下方“配置中心”填写上游 API URL。",
+            "填写 API Key 和默认模型。",
+            "如有需要，调整模型映射 JSON 与网关 Bearer Token。",
+            "点击“保存配置”，系统会立即应用新配置。",
+          ]);
+        }
+      }
+
       function initialize() {
         appTitle.textContent = `${boot.appName} 桌面版`;
-        appSubtitle.textContent = boot.upstreamConfigured
-          ? "本地网关服务已经具备上游配置，可以直接在窗口中调试模型请求。"
-          : "当前还没有完整配置上游模型服务。你可以先完善 .env，再重新启动桌面程序。";
         apiBaseUrl.textContent = boot.apiBaseUrl;
         logDbPath.textContent = boot.logDbPath;
-        defaultModel.textContent = boot.defaultModel;
-        requestTimeout.textContent = `${boot.requestTimeoutSeconds} 秒`;
         docsLink.href = `${boot.apiBaseUrl}/docs`;
         docsLink.target = "_self";
 
-        const savedToken = window.localStorage.getItem("gateway-token") || "";
-        gatewayTokenInput.value = savedToken || (boot.usingDefaultGatewayKey ? DEFAULT_GATEWAY_KEY : "");
-        tokenTip.textContent = boot.usingDefaultGatewayKey
-          ? "当前项目仍在使用默认网关密钥，已自动填入 local-dev-token。"
-          : "检测到你使用了自定义 GATEWAY_API_KEY，请输入后再请求接口。";
-        configHint.textContent = boot.upstreamConfigured
-          ? "上游模型地址和 API Key 已配置，可以直接测试接口。"
-          : "OPENAI_BASE_URL 或 OPENAI_API_KEY 为空，聊天请求会失败。";
-
+        applyEditableConfig(boot.editableConfig || {});
+        refreshStaticTexts();
         populateModels(boot.availableModels);
+        initializeOnboarding();
         setStatus("桌面窗口已启动，等待接口验证", boot.upstreamConfigured ? "success" : "warning");
+        configSaveTip.textContent = "填写后点击“保存配置”，内容会写入 .env 并立即应用。";
         messageInput.value = "请用简短文字介绍这个桌面网关软件。";
       }
 
@@ -527,6 +875,8 @@
       document.getElementById("load-models-btn").addEventListener("click", refreshModels);
       document.getElementById("send-btn").addEventListener("click", sendChat);
       document.getElementById("clear-btn").addEventListener("click", clearOutput);
+      saveConfigBtn.addEventListener("click", saveConfig);
+      reloadConfigBtn.addEventListener("click", refreshConfig);
 
       initialize();
     </script>

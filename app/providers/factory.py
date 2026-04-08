@@ -8,6 +8,11 @@ from app.providers.openai_compatible import OpenAICompatibleProvider
 _provider: ChatProvider | None = None
 
 
+def reset_chat_provider() -> None:
+    global _provider
+    _provider = None
+
+
 def get_chat_provider() -> ChatProvider:
     global _provider
 

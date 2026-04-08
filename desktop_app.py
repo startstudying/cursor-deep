@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import socket
+import sys
 import threading
 import time
 from contextlib import closing
+from pathlib import Path
 
 import uvicorn
 
@@ -15,6 +17,14 @@ except ImportError as exc:  # pragma: no cover - startup dependency guard
     raise SystemExit(
         "pywebview is not installed. Run `pip install -r requirements.txt` before starting the desktop app."
     ) from exc
+
+
+def _icon_path() -> str | None:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        candidate = Path(sys._MEIPASS) / "assets" / "app.ico"
+    else:
+        candidate = Path(__file__).resolve().parent / "assets" / "app.ico"
+    return str(candidate) if candidate.exists() else None
 
 
 class DesktopServer:
@@ -85,6 +95,13 @@ def main() -> None:
         min_size=(1024, 700),
         confirm_close=True,
     )
+
+    icon_path = _icon_path()
+    if icon_path:
+        try:
+            window.icon = icon_path
+        except Exception:
+            pass
 
     try:
         webview.start()

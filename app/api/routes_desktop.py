@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from html import escape
 from pathlib import Path
 
@@ -10,7 +11,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.config import DEFAULT_GATEWAY_API_KEY, settings
 
 router = APIRouter(tags=["desktop"])
-_DESKTOP_HTML_PATH = Path(__file__).resolve().parents[1] / "desktop" / "index.html"
+
+
+def _desktop_html_path() -> Path:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / "app" / "desktop" / "index.html"
+    return Path(__file__).resolve().parents[1] / "desktop" / "index.html"
 
 
 @router.get("/", include_in_schema=False)
@@ -20,7 +26,7 @@ def root() -> RedirectResponse:
 
 @router.get("/desktop", include_in_schema=False)
 def desktop_home(request: Request) -> HTMLResponse:
-    html_template = _DESKTOP_HTML_PATH.read_text(encoding="utf-8")
+    html_template = _desktop_html_path().read_text(encoding="utf-8")
     bootstrap = {
         "appName": settings.app_name,
         "apiBaseUrl": str(request.base_url).rstrip("/"),

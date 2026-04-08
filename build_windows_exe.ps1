@@ -11,8 +11,10 @@ $ErrorActionPreference = "Stop"
   --name cursor-deep-plus-desktop `
   --onefile `
   --windowed `
+  --icon "assets/app.ico" `
   --collect-submodules webview `
   --add-data "app/desktop/index.html;app/desktop" `
+  --add-data "assets/app.ico;assets" `
   desktop_app.py
 
 Write-Host "Build finished. EXE output:" -ForegroundColor Green

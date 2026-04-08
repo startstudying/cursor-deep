@@ -12,6 +12,7 @@
 - 支持通过 `DROP_FIELDS` 删除不希望透传到上游的字段
 - 提供 Docker 部署方式
 - 提供带窗口的 Windows 桌面壳，便于本地运行和打包为 `.exe`
+- 已内置应用图标、打包脚本和安装包脚本
 
 ## 项目结构
 
@@ -24,57 +25,16 @@
 │  ├─schemas/              # 请求/响应模型
 │  ├─config.py             # 环境变量配置
 │  └─main.py               # FastAPI 应用入口
+├─assets/                  # 图标资源
 ├─services/                # 日志服务
 ├─storage/                 # SQLite 初始化与数据访问
 ├─desktop_app.py           # Windows 桌面程序入口
 ├─build_windows_exe.ps1    # 打包桌面 exe 的脚本
+├─build_installer.ps1      # 打包安装程序脚本
+├─installer.iss            # Inno Setup 安装脚本
 ├─.env.example             # 环境变量示例
 ├─Dockerfile               # 容器镜像构建文件
 └─requirements.txt         # Python 依赖
-```
-
-## 接口说明
-
-### 1. 健康检查
-
-- 路径：`GET /health`
-- 说明：返回服务健康状态
-- 鉴权：需要 Bearer Token
-
-示例返回：
-
-```json
-{
-  "status": "ok"
-}
-```
-
-### 2. 获取模型列表
-
-- 路径：`GET /v1/models`
-- 说明：返回对外暴露的模型列表
-- 数据来源：`MODEL_MAP_JSON`
-- 鉴权：需要 Bearer Token
-
-### 3. 聊天补全
-
-- 路径：`POST /v1/chat/completions`
-- 说明：兼容 OpenAI Chat Completions 请求格式
-- 鉴权：需要 Bearer Token
-- 支持：普通模式、`stream=true` 流式模式
-
-最小请求示例：
-
-```json
-{
-  "model": "cursor-proxy",
-  "messages": [
-    {
-      "role": "user",
-      "content": "你好"
-    }
-  ]
-}
 ```
 
 ## 环境变量
@@ -107,8 +67,6 @@ pip install -r requirements.txt
 
 ### 2. 配置环境变量
 
-复制 `.env.example` 为 `.env`，并按需修改：
-
 ```bash
 copy .env.example .env
 ```
@@ -125,140 +83,50 @@ copy .env.example .env
 uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 ```
 
-启动后访问：
-
-- 健康检查：`http://127.0.0.1:8787/health`
-- 模型列表：`http://127.0.0.1:8787/v1/models`
-- 聊天接口：`http://127.0.0.1:8787/v1/chat/completions`
-- 桌面版页面：`http://127.0.0.1:8787/desktop`
-
-## Windows 桌面版
-
-### 直接启动带窗口的软件
-
-安装依赖后运行：
+### 4. 启动桌面版
 
 ```bash
 python desktop_app.py
 ```
 
-这会：
+## Windows 桌面打包
 
-1. 在本地启动 FastAPI 服务
-2. 打开一个桌面窗口
-3. 在窗口里显示内置管理界面
-4. 支持健康检查、模型列表刷新、直接发送聊天测试请求
-
-### 打包为 Windows `.exe`
-
-项目已经提供 PowerShell 打包脚本：
+### 生成单文件 exe
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build_windows_exe.ps1
 ```
 
-打包成功后输出文件位于：
+输出：
 
 ```text
 dist/cursor-deep-plus-desktop.exe
 ```
 
-### 手动打包命令
+### 生成安装包
 
-如果你想自己执行 PyInstaller，也可以使用：
+先安装 Inno Setup 6，然后运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
+```
+
+输出：
+
+```text
+installer-dist/cursor-deep-plus-desktop-setup.exe
+```
+
+### 手动打包命令
 
 ```bash
 python -m pip install -r requirements.txt pyinstaller
-python -m PyInstaller --noconfirm --clean --name cursor-deep-plus-desktop --onefile --windowed --collect-submodules webview --add-data "app/desktop/index.html;app/desktop" desktop_app.py
+python -m PyInstaller --noconfirm --clean --name cursor-deep-plus-desktop --onefile --windowed --icon "assets/app.ico" --collect-submodules webview --add-data "app/desktop/index.html;app/desktop" --add-data "assets/app.ico;assets" desktop_app.py
 ```
 
-## 调用示例
+## 说明
 
-### 获取模型列表
-
-```bash
-curl http://127.0.0.1:8787/v1/models ^
-  -H "Authorization: Bearer local-dev-token"
-```
-
-### 发起聊天请求
-
-```bash
-curl http://127.0.0.1:8787/v1/chat/completions ^
-  -H "Content-Type: application/json" ^
-  -H "Authorization: Bearer local-dev-token" ^
-  -d "{\"model\":\"cursor-proxy\",\"messages\":[{\"role\":\"user\",\"content\":\"介绍一下你自己\"}]}"
-```
-
-### 流式请求
-
-```bash
-curl http://127.0.0.1:8787/v1/chat/completions ^
-  -H "Content-Type: application/json" ^
-  -H "Authorization: Bearer local-dev-token" ^
-  -d "{\"model\":\"cursor-proxy\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"请分段回答\"}]}"
-```
-
-## Docker 运行
-
-### 构建镜像
-
-```bash
-docker build -t cursor-deep-plus .
-```
-
-### 启动容器
-
-```bash
-docker run --rm -p 8787:8787 --env-file .env cursor-deep-plus
-```
-
-## 日志说明
-
-服务会在启动时自动初始化 SQLite 数据库，并将聊天请求的关键信息写入 `chat_logs` 表，包括：
-
-- 请求时间
-- 请求路径
-- 请求模型 / 实际上游模型
-- 是否流式
-- 上游状态码 / 网关状态码
-- 截断后的请求体与响应体
-- 错误信息
-- 耗时
-- 客户端 IP、User-Agent、消息数、用户标识等
-
-适合用于本地调试、调用审计和简单运营分析。
-
-## 错误处理
-
-项目对以下情况做了统一错误响应封装：
-
-- Bearer Token 缺失或错误
-- 请求参数校验失败
-- 上游超时
-- 上游 HTTP 请求失败
-- 上游返回非法 JSON
-- 其他未处理异常
-
-错误格式统一为：
-
-```json
-{
-  "error": {
-    "message": "错误说明",
-    "type": "gateway_error"
-  }
-}
-```
-
-## 适用场景
-
-- 为现有上游模型服务增加统一入口
-- 给客户端暴露更稳定的模型命名
-- 本地搭建简单的 LLM 代理层
-- 为模型调用增加基础日志能力
-- 作为可分发的 Windows 桌面工具使用
-
-## 许可证
-
-如需开源发布，请按你的实际需求补充许可证信息。
+- 单文件 exe 已包含桌面页面资源和应用图标。
+- 安装包会创建开始菜单快捷方式，并可选创建桌面快捷方式。
+- 若未配置 `.env` 中的上游参数，桌面程序可以启动，但聊天请求不会成功。
+- 若未安装 Inno Setup，则只能先生成 exe，不能生成安装包。
